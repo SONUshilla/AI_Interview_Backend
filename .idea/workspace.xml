@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="7f5187d8-39ac-4fcc-b70c-e69d80143d15" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/AiInterview.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/app/main.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2
+}</component>
+  <component name="ProjectId" id="32Um7zMiy2jyFf7cfh4YQTtF6NM" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/msi/PycharmProjects/AiInterview/app/interview&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\msi\PycharmProjects\AiInterview\app\interview" />
+      <recent name="C:\Users\msi\PycharmProjects\AiInterview" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\msi\PycharmProjects\AiInterview\app\database" />
+      <recent name="C:\Users\msi\PycharmProjects\AiInterview\app" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-ce6832f46686-7b97d883f26b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.25557.178" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="7f5187d8-39ac-4fcc-b70c-e69d80143d15" name="Changes" comment="" />
+      <created>1757483363563</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1757483363563</updated>
+      <workItem from="1757483376910" duration="4672000" />
+      <workItem from="1757491431049" duration="12995000" />
+      <workItem from="1757579326902" duration="722000" />
+      <workItem from="1757583453661" duration="1857000" />
+      <workItem from="1757647017267" duration="17481000" />
+      <workItem from="1757675713901" duration="1368000" />
+      <workItem from="1757689866092" duration="4537000" />
+      <workItem from="1757730761961" duration="1572000" />
+      <workItem from="1757756947178" duration="957000" />
+      <workItem from="1757826380666" duration="17914000" />
+      <workItem from="1757868154588" duration="2480000" />
+      <workItem from="1757924374813" duration="1910000" />
+      <workItem from="1757939335897" duration="2506000" />
+      <workItem from="1757954703879" duration="122000" />
+      <workItem from="1757988133479" duration="2460000" />
+      <workItem from="1758000868772" duration="16182000" />
+      <workItem from="1758031731218" duration="8636000" />
+      <workItem from="1758074226007" duration="18622000" />
+      <workItem from="1758103181016" duration="1348000" />
+      <workItem from="1758113121014" duration="2589000" />
+      <workItem from="1758132954373" duration="433000" />
+      <workItem from="1758167419652" duration="1559000" />
+      <workItem from="1758177454746" duration="12332000" />
+      <workItem from="1758259413786" duration="5974000" />
+      <workItem from="1758269021082" duration="4968000" />
+      <workItem from="1758282636464" duration="410000" />
+      <workItem from="1758299502204" duration="368000" />
+      <workItem from="1758691446560" duration="15738000" />
+      <workItem from="1758718012408" duration="2526000" />
+      <workItem from="1758787703156" duration="2910000" />
+      <workItem from="1758796490311" duration="1902000" />
+      <workItem from="1758816072232" duration="962000" />
+      <workItem from="1758819977089" duration="2623000" />
+      <workItem from="1758880595212" duration="3735000" />
+      <workItem from="1758896241149" duration="3884000" />
+      <workItem from="1759208509479" duration="9699000" />
+      <workItem from="1759283995489" duration="4515000" />
+      <workItem from="1759765571112" duration="1397000" />
+      <workItem from="1759829810041" duration="7616000" />
+      <workItem from="1759840060766" duration="1578000" />
+      <workItem from="1760087244835" duration="23000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
