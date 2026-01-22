@@ -1,6 +1,6 @@
 import io
 from fileinput import filename
-
+from groq import Groq
 from fastapi import APIRouter, UploadFile, File, Form
 import os
 import subprocess
@@ -106,32 +106,47 @@ async def answer12(
 
 def get_ai_evaluation(question, user_answer, code):
     """
-    Sends the prompt to the Groq/OpenAI API and returns its response as JSON.
+    Evaluates a candidate's answer using the Groq/OpenAI API.
+    Returns a JSON string containing scores and feedback.
     """
+
+    # --- 1. PYTHON GUARD: Immediate check for empty input ---
+    # This prevents the AI from hallucinating a score for an empty answer.
+    has_answer = user_answer and str(user_answer).strip()
+    has_code = code and str(code).strip()
+
+    if not has_answer and not has_code:
+        print(f"Skipping AI evaluation for empty answer. Question: {question[:30]}...")
+        return json.dumps({
+            "score": 0,
+            "confidence": 0,
+            "grammar": 0,
+            "clarity": 0,
+            "completeness": 0,
+            "feedback": "No answer provided."
+        })
+
+    # --- 2. SYSTEM PROMPT: Robust scoring rules ---
     system_prompt = """
     You are a fair and consistent technical interviewing evaluator.
-    You must evaluate the candidate's answer to the given question and return scores consistently.
+    You must evaluate the candidate's answer to the given question.
 
-    Scoring Rules:
-    - If the answer is completely empty, whitespace, or just filler (e.g., "I don’t know"), 
-      set all scores to 0 and feedback = "No answer provided."
-    - If the answer is unrelated to the question, 
-      set all scores to 0 and feedback = "Answer is irrelevant to the question."
-    - Otherwise, score based on:
-      - Correctness: Logic and facts (0–10)
-      - Completeness: Covers all requirements (0–10)
-      - Clarity: Explanation understandable (0–10)
-      - Grammar: Writing clarity and correctness (0–10)
-      - Confidence: Apparent confidence in response (0–10)
+    CRITICAL SCORING RULES:
+    1. If the answer is completely empty, whitespace, or just filler (e.g., "I don't know", "skip"), 
+       set all scores to 0 and feedback = "No answer provided."
+    2. If the answer is unrelated to the question, 
+       set all scores to 0 and feedback = "Answer is irrelevant."
+    3. DO NOT HALLUCINATE code or answers if they are not present in the input.
 
-    Additional Rules:
-    - Short factual answers (like numeric or single-statement results) are acceptable if they match the correct value.
-      These should score 7–8 for correctness, even if brief.
-    - Partially correct but incomplete answers → 4–6.
-    - Mostly correct with minor gaps → 7–8.
-    - Fully correct, clear, and well-explained with examples → 9–10.
+    SCORING RUBRIC (0-10):
+    - Score (Overall): A weighted average of the metrics below.
+    - Correctness: Logic and facts. Short factual answers (e.g., "404") get 7-8 if correct.
+    - Completeness: Covers all edge cases and requirements.
+    - Clarity: Explanation is understandable.
+    - Grammar: Writing is professional.
+    - Confidence: Tone is certain (not "maybe" or "I think").
 
-    Output strictly as JSON:
+    Output strictly as valid JSON with no markdown formatting:
     {
       "score": int,
       "confidence": int,
@@ -146,14 +161,14 @@ def get_ai_evaluation(question, user_answer, code):
     ### Question:
     {question}
 
-    ### Candidate's Code (if any):
-    {code}
+    ### Candidate's Code:
+    {code if has_code else "No code provided."}
 
     ### Candidate's Answer:
-    {user_answer}
+    {user_answer if has_answer else "No text answer provided."}
 
-    ### Evaluation:
-    Evaluate correctness even if the answer is short but factually right (like numeric results). 
+    ### Task:
+    Evaluate the above. If the answer/code is missing or irrelevant, score 0.
     """
 
     payload = {
@@ -162,7 +177,7 @@ def get_ai_evaluation(question, user_answer, code):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": full_prompt}
         ],
-        "temperature": 0.2,
+        "temperature": 0.1,  # Lower temperature for more consistent/strict scoring
         "stream": False,
         "response_format": {"type": "json_object"}
     }
@@ -177,11 +192,34 @@ def get_ai_evaluation(question, user_answer, code):
         response.raise_for_status()
 
         ai_text = response.json()["choices"][0]["message"]["content"]
+
+        # Verify it parses as JSON before returning
+        # This raises an error if the AI returns garbage, which is caught below
+        json.loads(ai_text)
+
         return ai_text
 
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Error communicating with the AI model: {e}")
-
+        print(f"AI API Error: {e}")
+        # Return a fallback JSON so the frontend doesn't crash
+        return json.dumps({
+            "score": 0,
+            "confidence": 0,
+            "grammar": 0,
+            "clarity": 0,
+            "completeness": 0,
+            "feedback": "Error evaluating answer (AI Service Unavailable)."
+        })
+    except json.JSONDecodeError as e:
+        print(f"AI JSON Error: {e}")
+        return json.dumps({
+            "score": 0,
+            "confidence": 0,
+            "grammar": 0,
+            "clarity": 0,
+            "completeness": 0,
+            "feedback": "Error parsing evaluation results."
+        })
 
 def get_ai_questions(
     job_title,
@@ -273,62 +311,102 @@ def get_ai_questions(
 
 
 
-def get_questions(user_prompt: str, temperature: float = 0.5):
-    """Generate interview questions with a fixed output schema"""
+client = Groq()  # uses GROQ_API_KEY automatically
 
-    system_prompt = """
-You are an AI that generates interview questions in JSON format.
-Always follow this schema strictly:
 
-{{
-  "questions": [
-    {{
-      "isCodingRequired": true/false,
-      "MaxTimeToAnswer": <integer seconds>,
-      "Question": "Question text here"
-    }},
-    ...
-  ]
-}}
+# Ensure you import your supabase client here
+# from database import supabase
 
-- Do not include anything outside the JSON.
-- Keep the questions clear and relevant to the user prompt.
-- Ensure valid JSON that can be parsed directly.
-"""
+def get_questions(campaign_id: str, temperature: float = 0.7):
+    """
+    Generates interview questions by reading the full chat history
+    from the database, preserving context and instruction priority.
+    """
 
-    payload = {
-        "model": "openai/gpt-oss-120b",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "temperature": temperature,
-        "stream": False,
+    # 1. THE SYSTEM PROMPT (JSON Rules)
+    # This is always the very first message. It sets the rules of the game.
+    system_instruction = """
+    SYSTEM ROLE: You are a strict JSON-Output Engine for an Interview System.
+
+    CRITICAL RULES:
+    1. Output ONLY valid JSON.
+    2. Do not add markdown formatting (no ```json or ```).
+    3. Do not add conversational text ("Here are your questions...").
+
+    JSON SCHEMA:
+    {
+      "questions": [
+        {
+          "isCodingRequired": true/false,
+          "MaxTimeToAnswer": <integer seconds>,
+          "Difficulty": "Easy" | "Medium" | "Hard",
+          "Topic": "<string>",
+          "Question": "<string>"
+        }
+      ]
     }
+    """
 
+    # 2. FETCH HISTORY FROM DB
+    # We get all previous turns to build the "memory"
     try:
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
-            json=payload,
-            timeout=120
+        response = supabase.table("chat_messages") \
+            .select("*") \
+            .eq("campaign_id", campaign_id) \
+            .order("created_at", desc=False) \
+            .execute()
+
+        db_messages = response.data or []
+    except Exception as e:
+        print(f"DB Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch context history")
+
+    # 3. CONVERT TO LLM FORMAT
+    # Start with the System Prompt
+    api_messages = [
+        {"role": "system", "content": system_instruction}
+    ]
+
+    # Append the DB history
+    for msg in db_messages:
+        # Convert DB roles to API roles
+        # DB 'system' usually means the AI's reply, so we call it 'assistant'
+        # DB 'user' remains 'user'
+        role = "assistant" if msg["role"] == "system" else "user"
+        content = msg["message"]
+
+        # Guard against empty messages
+        if content:
+            api_messages.append({"role": role, "content": content})
+
+    # 4. CALL THE AI
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=api_messages,  # <--- PASS THE LIST, NOT A STRING
+            temperature=temperature,
+            max_completion_tokens=2048,
+            top_p=1,
+            stream=False,
+            # Force JSON mode if the model supports it (Llama 3 often does)
+            response_format={"type": "json_object"}
         )
-        response.raise_for_status()
 
-        content = response.json()["choices"][0]["message"]["content"]
+        content = completion.choices[0].message.content.strip()
 
-        # Try parsing as JSON
-        try:
-            questions = json.loads(content)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="Model did not return valid JSON")
+        # Sanitize Markdown (Llama sometimes ignores the system prompt)
+        if content.startswith("```json"):
+            content = content.replace("```json", "", 1)
+        if content.endswith("```"):
+            content = content.replace("```", "", 1)
 
-        return questions
+        return json.loads(content)
 
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Error generating questions from AI: {e}")
-
-
+    except json.JSONDecodeError:
+        print(f"JSON Error. Raw Content: {content}")
+        raise HTTPException(status_code=500, detail="AI generated invalid JSON format.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Service Error: {str(e)}")
 
 class CampaignRequest(BaseModel):
     campaign_id: str
@@ -679,7 +757,7 @@ def start_interview(request: StartInterviewRequest):
     temperature = campaign_result.data[0]["temperature"]
 
     # Generate questions
-    que = get_questions(final_prompt, temperature)
+    que = get_questions(campaign_id=campaign_id, temperature=temperature)
     questions = que.get("questions", [])
     if not questions:
         return {"error": "No questions generated"}

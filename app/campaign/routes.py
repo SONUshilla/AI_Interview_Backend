@@ -1,6 +1,6 @@
 import json
 from typing import List
-
+from typing import Optional
 from fastapi import APIRouter, Depends,HTTPException
 import requests
 from pydantic import BaseModel
@@ -12,42 +12,86 @@ router = APIRouter()
 
 
 def create_sample_prompt(
-        job_title: str = "Frontend Developer",
-        experience_years: int = 5,
-        seniority_level: str = "mid",
-        skills: list[str] = None,
+        job_title: str,
+        experience_years: int,
+        seniority_level: str,
+        skills: list[str],
+        preferred_skills: list[str] = None,
         industry: str = "General",
         round_type: str = "Technical",
+        difficulty_distribution: str = "balanced",  # Changed from dict to str to match Form input
+        job_responsibilities: str = "",
+        soft_skills_focus: str = None,  # Changed to str to match Form input (or handle list inside)
         num_questions: int = 5,
-        user_instructions: str = ""
+        user_instructions: str = "",
+        previous_feedback: str = None
 ):
-    skills = skills or ["JavaScript", "React", "HTML/CSS"]
+    # 1. Handle Defaults & Type Conversions
+    skills = skills or []
+    preferred_skills = preferred_skills or []
 
-    system_prompt = f"""
-You are an expert recruiter and interviewer. Generate exactly {num_questions} interview questions
-based on the candidate profile and the interview round: {round_type}.
+    # Handle Soft Skills (Ensure it's a string for the prompt)
+    if isinstance(soft_skills_focus, list):
+        soft_skills_str = ", ".join(soft_skills_focus)
+    else:
+        soft_skills_str = soft_skills_focus or "None"
 
-Admin instructions: {user_instructions if user_instructions else "No extra instructions provided."}
+    # 2. Map Difficulty String to Prompt Description
+    difficulty_map = {
+        "balanced": "A balanced mix of Easy (warm-up), Medium (core), and Hard (depth) questions.",
+        "easy": "Primarily Easy to Medium questions to assess basic competence.",
+        "hard": "Challenging and complex questions to stress-test expertise.",
+        "progressive": "Start with an easy question and progressively increase difficulty to expert level."
+    }
+    # Fallback if a custom dict is passed (legacy support) or unknown string
+    if isinstance(difficulty_distribution, dict):
+        difficulty_str = ", ".join([f"{v} {k}" for k, v in difficulty_distribution.items() if v > 0])
+    else:
+        difficulty_str = difficulty_map.get(str(difficulty_distribution).lower(), "Balanced difficulty mix.")
 
-Rules:
-1. Prioritize user_instructions, then skills, then general field knowledge.
-2. Questions should be clear, concise, and realistic for a normal human interview.
-3. Difficulty should match the candidate's experience and seniority.
-4. Include only questions relevant to the specified round type.
+    # 3. The Core "Persona" & Rules
+    prompt_content = f"""
+ROLE: You are an expert {industry} Technical Interviewer focusing on {job_title}. 
+Target Candidate: {seniority_level} level with {experience_years} years of experience.
 
+OBJECTIVE:
+Generate exactly {num_questions} unique interview questions for a {round_type} round.
+Difficulty Strategy: {difficulty_str}
 
+CANDIDATE CONTEXT:
+- **Required Skills:** {', '.join(skills)}
+- **Nice-to-Have Skills:** {', '.join(preferred_skills)}
+- **Soft Skills / Behavioral Focus:** {soft_skills_str}
+- **Job Responsibilities:** {job_responsibilities if job_responsibilities else "Standard duties for this role."}
 
-Candidate Info:
-- Job Title: {job_title}
-- Experience: {experience_years} years
-- Seniority Level: {seniority_level}
-- Skills: {', '.join(skills) if skills else 'Not specified'}
-- Industry: {industry if industry else 'General'}
+ADMIN INSTRUCTIONS:
+{user_instructions if user_instructions else "None provided."}
 
-Feedback: updates questions based on the feedbacks
+QUALITY GUIDELINES:
+1. **Scenario-Based:** Avoid generic "What is X?" questions. Use the "Job Responsibilities" to frame realistic scenarios.
+2. **Depth Check:** Ensure questions match the {seniority_level} level. (e.g., Seniors should face architectural trade-offs, not just syntax).
+3. **Coding Flag:** Set 'isCodingRequired' to true ONLY if the question requires writing actual code (DSA, SQL, etc.).
+
+OUTPUT FORMAT:
+Return ONLY valid JSON. No markdown formatting.
+{{
+  "questions": [
+    {{
+      "isCodingRequired": boolean,
+      "MaxTimeToAnswer": integer (seconds),
+      "Difficulty": "Easy" | "Medium" | "Hard",
+      "Topic": "Skill or Concept being tested",
+      "Question": "The interview question text"
+    }}
+  ]
+}}
 """
-    return system_prompt
 
+    # 4. Handle Refinement
+    if previous_feedback:
+        prompt_content += f"\n\nUPDATE REQUEST: The user rejected previous output. Feedback: '{previous_feedback}'. Strictly adhere to this new direction."
+
+    return prompt_content
 
 from fastapi import Form
 from uuid import uuid4
@@ -68,36 +112,53 @@ import httpx
 
 router = APIRouter()
 
+
 @router.post("/CreateNewCampaign")
 def create_new_campaign(
-    user=Depends(get_current_user),
-    campaign_name: str = Form(...),
-    job_title: str = Form(...),
-    experience_years: int = Form(...),
-    seniority_level: str = Form(...),
-    skills: str = Form(None),  # comma-separated
-    industry: str = Form(None),
-    num_questions: int = Form(5),
-    round_type: str = Form(None),
-    user_instructions: str = Form(None)
+        user=Depends(get_current_user),
+        campaign_name: str = Form(...),
+        job_title: str = Form(...),
+        experience_years: int = Form(...),
+        seniority_level: str = Form(...),
+        skills: Optional[str] = Form(None),  # comma-separated
+        industry: Optional[str] = Form(None),
+        num_questions: int = Form(5),
+        round_type: Optional[str] = Form(None),
+        user_instructions: Optional[str] = Form(None),
+
+        # --- NEW FIELDS ---
+        difficulty_distribution: Optional[str] = Form("balanced"),
+        job_responsibilities: Optional[str] = Form(None),
+        preferred_skills: Optional[str] = Form(None),  # comma-separated
+        soft_skills_focus: Optional[str] = Form(None)
 ):
     try:
-        # Convert skills string to list
-        skills_list = [s.strip() for s in skills.split(",")] if skills else []
+        # 1. Process Lists (Convert comma-separated strings to lists)
+        skills_list = [s.strip() for s in skills.split(",")] if skills and skills.strip() else []
+        preferred_skills_list = [s.strip() for s in
+                                 preferred_skills.split(",")] if preferred_skills and preferred_skills.strip() else []
 
-        # Generate default final_prompt
+        # 2. Generate default final_prompt
+        # NOTE: You must also update your `create_sample_prompt` function definition
+        # to accept and use these new arguments.
         final_prompt = create_sample_prompt(
             job_title=job_title,
             experience_years=experience_years,
             seniority_level=seniority_level,
             skills=skills_list,
+            preferred_skills=preferred_skills_list,  # Passed to prompt generator
             industry=industry,
             round_type=round_type or "Technical",
+            difficulty_distribution=difficulty_distribution,  # Passed to prompt generator
+            job_responsibilities=job_responsibilities,  # Passed to prompt generator
+            soft_skills_focus=soft_skills_focus,  # Passed to prompt generator
             num_questions=num_questions,
             user_instructions=user_instructions
         )
 
         campaign_id = str(uuid4())
+
+        # 3. Prepare Campaign Object
         campaign = {
             "id": campaign_id,
             "campaign_name": str(campaign_name),
@@ -110,24 +171,32 @@ def create_new_campaign(
             "num_questions": num_questions,
             "round_type": round_type,
             "user_instructions": user_instructions,
+
+            # Add New Fields to DB Object
+            "difficulty_distribution": difficulty_distribution,
+            "job_responsibilities": job_responsibilities,
+            "preferred_skills": preferred_skills_list,
+            "soft_skills_focus": soft_skills_focus,
+
             "final_prompt": final_prompt,
             "status": "active"
         }
 
-        # Insert campaign
+        # 4. Insert campaign
         try:
             response = supabase.table("interview_campaign").insert(campaign).execute()
-        except httpx.ConnectError as e:
+        except Exception as e:
+            # Using generic Exception as httpx.ConnectError might not catch Supabase specific errors
             return JSONResponse(status_code=503, content={"error": "Database connection failed", "details": str(e)})
 
         if not response.data:
             return JSONResponse(status_code=500, content={"error": "Failed to insert campaign"})
 
-        # Generate questions
+        # 5. Generate questions using the AI
         questions = get_questions(final_prompt)
         formatted_questions = format_questions_as_numbered_string(questions)
 
-        # Store in chat_messages
+        # 6. Store in chat_messages
         chat_message = {
             "id": str(uuid4()),
             "campaign_id": campaign_id,
@@ -137,7 +206,7 @@ def create_new_campaign(
 
         try:
             response = supabase.table("chat_messages").insert(chat_message).execute()
-        except httpx.ConnectError as e:
+        except Exception as e:
             return JSONResponse(status_code=503, content={"error": "Failed to save chat messages", "details": str(e)})
 
         if not response.data:
@@ -221,60 +290,54 @@ Task: Rewrite into one clear, short final prompt without repetition.
 
 @router.post("/UpdateQuestions")
 def update_questions(
-    campaign_id: str = Form(...),
-    feedback_text: str = Form(...),
-    temperature: float = Form(...),
+        campaign_id: str = Form(...),
+        feedback_text: str = Form(...),
+        temperature: float = Form(0.7),
 ):
+    try:
+        # 1. Log the User's Feedback (This adds it to the AI's "Short Term Memory")
+        # We add a prefix so the AI knows this is a command, not just data.
+        formatted_user_msg = f"UPDATE REQUEST: {feedback_text}"
 
-    # Store in chat_messages table
-    chat_message = {
-        "id": str(uuid4()),
-        "campaign_id": campaign_id,
-        "message": feedback_text,
-        "role": "user"
-    }
-    supabase.table("chat_messages").insert(chat_message).execute()
-    # 1. Fetch campaign final_prompt
-    campaign = supabase.table("interview_campaign") \
-        .select("final_prompt") \
-        .eq("id", campaign_id) \
-        .single() \
-        .execute()
+        supabase.table("chat_messages").insert({
+            "id": str(uuid4()),
+            "campaign_id": campaign_id,
+            "message": formatted_user_msg,
+            "role": "user"
+        }).execute()
 
-    if not campaign.data:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+        # 2. Update Temperature (Optional)
+        # We don't need to update 'final_prompt' anymore because the history IS the prompt.
+        supabase.table("interview_campaign") \
+            .update({"temperature": temperature}) \
+            .eq("id", campaign_id) \
+            .execute()
 
-    current_prompt = campaign.data.get("final_prompt") or ""
+        # 3. Generate New Questions
+        # FIX: Pass 'campaign_id' instead of 'user_prompt'.
+        # The function will fetch the full chat history from the DB itself.
+        questions_json = get_questions(campaign_id=campaign_id, temperature=temperature)
 
-    # 2. Summarise final_prompt + feedback
-    updated_prompt = f"{current_prompt}\n\nUser Feedback:\n{feedback_text}"
+        if not questions_json:
+            raise HTTPException(status_code=500, detail="AI returned empty questions")
 
+        # 4. Save the AI's Response to DB
+        formatted_questions_text = format_questions_as_numbered_string(questions_json)
 
-    # 3. Update table with summarised prompt
-    supabase.table("interview_campaign") \
-        .update({
-        "final_prompt": updated_prompt,
-        "temperature": temperature  # <-- new field
-    }) \
-        .eq("id", campaign_id) \
-        .execute()
+        response = supabase.table("chat_messages").insert({
+            "id": str(uuid4()),
+            "campaign_id": campaign_id,
+            "message": formatted_questions_text,
+            "role": "system"  # Or 'assistant' depending on your schema preferences
+        }).execute()
 
-    questions = get_questions(updated_prompt,temperature)
-    # Extract questions and format
-    formatted_questions = format_questions_as_numbered_string(questions)
-    # Store in chat_messages table
-    chat_message = {
-        "id": str(uuid4()),
-        "campaign_id": campaign_id,
-        "message": formatted_questions,
-        "role": "system"
-    }
-    response = supabase.table("chat_messages").insert(chat_message).execute()
+        return response.data[0]
 
-    if response.data and len(response.data) > 0:
-        return response.data[0]  # return the row itself
-    else:
-        return {"error": "Failed to create interview campaign"}
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 
